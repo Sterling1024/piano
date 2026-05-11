@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星空钢琴</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 100vh;
+  background: #020208;
+  font-family: system-ui, sans-serif;
+  overflow: hidden;
+}
+canvas { position: fixed; top: 0; left: 0; pointer-events: none; }
+#bg-canvas { z-index: 0; }
+#staff-canvas { z-index: 5; }
+#orb-canvas { z-index: 10; }
+#glow-canvas { z-index: 12; }
+#shooting-canvas { z-index: 15; }
+h1 {
+  color: rgba(200,220,255,0.5);
+  margin-bottom: 4px;
+  z-index: 20;
+  position: absolute;
+  bottom: 190px;
+  text-shadow: 0 0 12px rgba(150,180,255,0.3);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 3px;
+}
+.instrument-selector {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 170px;
+  z-index: 20;
+  position: absolute;
+  bottom: 8px;
+}
+.inst-btn {
+  padding: 5px 14px;
+  border: 1px solid rgba(150,180,220,0.2);
+  background: rgba(30,40,80,0.25);
+  color: rgba(150,180,220,0.6);
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+.inst-btn:hover { background: rgba(50,70,120,0.35); color: rgba(200,220,255,0.8); }
+.inst-btn.active {
+  background: rgba(60,100,180,0.35);
+  border-color: rgba(100,150,220,0.4);
+  color: rgba(200,220,255,1);
+  box-shadow: 0 0 10px rgba(80,120,200,0.4);
+}
+.piano {
+  display: flex;
+  position: relative;
+  height: 150px;
+  z-index: 20;
+}
+.white-key {
+  width: 50px;
+  height: 150px;
+  background: linear-gradient(180deg, rgba(200,220,255,0.10) 0%, rgba(180,210,255,0.05) 100%);
+  border: 1px solid rgba(150,180,220,0.12);
+  border-top: 2px solid rgba(200,220,255,0.30);
+  border-radius: 0 0 6px 6px;
+  cursor: pointer;
+  transition: all 0.06s;
+  box-shadow: inset 0 -8px 15px rgba(80,120,200,0.05), 0 2px 6px rgba(0,0,0,0.4);
+}
+.white-key:active, .white-key.active {
+  background: linear-gradient(180deg, rgba(150,200,255,0.30) 0%, rgba(120,180,255,0.18) 100%);
+  box-shadow: 0 0 20px rgba(80,140,255,0.6), inset 0 0 12px rgba(80,140,255,0.35);
+}
+.black-key {
+  width: 32px;
+  height: 95px;
+  background: linear-gradient(180deg, rgba(40,60,120,0.65) 0%, rgba(25,35,80,0.55) 100%);
+  position: absolute;
+  top: 0;
+  border-radius: 0 0 5px 5px;
+  cursor: pointer;
+  z-index: 21;
+  transition: all 0.06s;
+  border: 1px solid rgba(80,120,200,0.18);
+  border-top: 1px solid rgba(100,150,255,0.30);
+  box-shadow: inset 0 -4px 8px rgba(40,60,120,0.18), 0 2px 5px rgba(0,0,0,0.5);
+}
+.black-key:active, .black-key.active {
+  background: linear-gradient(180deg, rgba(60,100,180,0.50) 0%, rgba(40,80,150,0.40) 100%);
+  box-shadow: 0 0 18px rgba(80,140,255,0.7), inset 0 0 8px rgba(80,140,255,0.45);
+}
+.key-label {
+  font-size: 7px;
+  color: rgba(120,150,200,0.4);
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.black-key .key-label { bottom: 3px; font-size: 6px; }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<canvas id="staff-canvas"></canvas>
+<canvas id="orb-canvas"></canvas>
+<canvas id="glow-canvas"></canvas>
+<canvas id="shooting-canvas"></canvas>
+<div class="piano" id="piano"></div>
+<div class="instrument-selector">
+  <button class="inst-btn active" data-inst="piano">钢琴</button>
+  <button class="inst-btn" data-inst="flute">笛子</button>
+  <button class="inst-btn" data-inst="strings">弦乐</button>
+</div>
+<h1>星空钢琴</h1>
+<script>
+// === 银河背景 ===
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+
+const aquariusStars = [
+  { x: 0.08, y: 0.15, s: 1.8 }, { x: 0.13, y: 0.22, s: 1.2 },
+  { x: 0.17, y: 0.29, s: 2.2 }, { x: 0.24, y: 0.19, s: 1.0 },
+  { x: 0.25, y: 0.35, s: 1.6 }, { x: 0.33, y: 0.41, s: 1.3 },
+  { x: 0.35, y: 0.28, s: 1.8 }, { x: 0.39, y: 0.38, s: 1.1 },
+  { x: 0.43, y: 0.32, s: 2.0 }, { x: 0.48, y: 0.44, s: 1.4 },
+  { x: 0.52, y: 0.25, s: 1.0 }, { x: 0.56, y: 0.48, s: 1.7 },
+  { x: 0.61, y: 0.36, s: 1.2 }, { x: 0.65, y: 0.52, s: 2.1 },
+  { x: 0.69, y: 0.42, s: 1.5 }, { x: 0.73, y: 0.55, s: 1.3 },
+  { x: 0.77, y: 0.38, s: 1.0 }, { x: 0.82, y: 0.48, s: 1.8 },
+  { x: 0.88, y: 0.44, s: 1.2 }, { x: 0.92, y: 0.52, s: 2.0 },
+];
+const aquariusLines = [
+  [0, 2], [2, 4], [4, 6], [6, 8],
+  [1, 3], [3, 5], [5, 7], [7, 9],
+  [10, 11], [11, 13], [13, 15], [15, 17],
+  [8, 10], [12, 14], [14, 16], [16, 18],
+  [17, 19], [2, 6], [4, 12], [8, 14]
+];
+let starTwinkle = aquariusStars.map(() => ({
+  a: 0.5 + Math.random() * 0.5,
+  dir: Math.random() > 0.5 ? 1 : -1,
+  speed: 0.006 + Math.random() * 0.015
+}));
+
+const galaxyStars = [];
+for (let i = 0; i < 800; i++) {
+  const rand = Math.random();
+  galaxyStars.push({
+    x: rand < 0.12 ? Math.random() * 0.12 : (rand > 0.88 ? 0.88 + Math.random() * 0.12 : 0.12 + Math.random() * 0.76),
+    y: 0.1 + Math.random() * 0.8,
+    size: Math.random() < 0.75 ? 0.5 : (Math.random() < 0.93 ? 1 : 1.5),
+    brightness: 0.3 + Math.random() * 0.6,
+    speed: 0.00005 + Math.random() * 0.00008,
+    inBelt: Math.random() > 0.4,
+  });
+}
+
+function drawGalaxyBackground() {
+  const w = bgCanvas.width, h = bgCanvas.height;
+  bgCtx.clearRect(0, 0, w, h);
+  bgCtx.fillStyle = '#020208';
+  bgCtx.fillRect(0, 0, w, h);
+
+  // 银河带
+  const beltGrad = bgCtx.createLinearGradient(0, h * 0.15, 0, h * 0.85);
+  beltGrad.addColorStop(0, 'transparent');
+  beltGrad.addColorStop(0.2, 'rgba(40,30,80,0.15)');
+  beltGrad.addColorStop(0.5, 'rgba(70,45,120,0.30)');
+  beltGrad.addColorStop(0.8, 'rgba(40,30,80,0.15)');
+  beltGrad.addColorStop(1, 'transparent');
+  bgCtx.fillStyle = beltGrad;
+  bgCtx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const horizonY = h * 0.68;
+  galaxyStars.forEach(star => {
+    const timeOffset = Date.now() * star.speed;
+    const progress = timeOffset % 1;
+    const expand = progress;
+
+    const basePx = cx + (star.x - 0.5) * w * 0.5;
+    const basePy = horizonY + (star.y - 0.5) * h * 0.5;
+    const px = cx + (basePx - cx) * (0.1 + expand * 0.9);
+    const py = horizonY + (basePy - horizonY) * (0.1 + expand * 0.9);
+    const alpha = star.brightness * (0.2 + expand * 0.8);
+    const scale = 0.2 + expand * 0.8;
+
+    bgCtx.globalAlpha = alpha;
+    bgCtx.fillStyle = star.inBelt ? '#d0e0ff' : '#a0b8d8';
+    bgCtx.beginPath();
+    bgCtx.arc(px, py, star.size * scale, 0, Math.PI * 2);
+    bgCtx.fill();
+  });
+
+  bgCtx.strokeStyle = 'rgba(90,130,190,0.22)';
+  bgCtx.lineWidth = 0.8;
+  aquariusLines.forEach(([a, b]) => {
+    bgCtx.beginPath();
+    bgCtx.moveTo(aquariusStars[a].x * w, aquariusStars[a].y * h);
+    bgCtx.lineTo(aquariusStars[b].x * w, aquariusStars[b].y * h);
+    bgCtx.stroke();
+  });
+
+  aquariusStars.forEach((s, i) => {
+    starTwinkle[i].a += starTwinkle[i].dir * starTwinkle[i].speed;
+    if (starTwinkle[i].a > 1 || starTwinkle[i].a < 0.3) starTwinkle[i].dir *= -1;
+    bgCtx.globalAlpha = starTwinkle[i].a;
+    bgCtx.fillStyle = '#d8ecff';
+    bgCtx.shadowColor = '#5080c0';
+    bgCtx.shadowBlur = 8;
+    bgCtx.beginPath();
+    bgCtx.arc(s.x * w, s.y * h, s.s * 0.9, 0, Math.PI * 2);
+    bgCtx.fill();
+  });
+
+  bgCtx.globalAlpha = 1;
+  bgCtx.shadowBlur = 0;
+  requestAnimationFrame(drawGalaxyBackground);
+}
+
+// === 五线谱 ===
+const staffCanvas = document.getElementById('staff-canvas');
+const staffCtx = staffCanvas.getContext('2d');
+let flowSpeed = 0.3;
+let targetSpeed = 0.3;
+let jumpInterval = 80;
+let lastJump = 0;
+const LINE_SPACING = 14;
+const staffNotes = [];
+const noteSymbols = ['♪', '♫', '♩', '♬'];
+
+const HORIZON_Y = 0.65;
+const STAFF_START_Y = 0.82;
+
+function getHorizonY() { return staffCanvas.height * HORIZON_Y; }
+function getStaffNearY() { return staffCanvas.height * STAFF_START_Y; }
+
+function drawStaff(ctx, offset) {
+  const w = staffCanvas.width;
+  const cx = w / 2;
+  const horizonY = getHorizonY();
+  const nearY = getStaffNearY();
+  ctx.save();
+
+  ctx.strokeStyle = 'rgba(60,90,150,0.55)';
+  ctx.lineWidth = 1.2;
+
+  for (let i = 0; i < 5; i++) {
+    const lineNearY = nearY - LINE_SPACING * 2 + i * LINE_SPACING;
+
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.45, lineNearY);
+    ctx.quadraticCurveTo(cx, lineNearY + 50, cx - 20, horizonY);
+    ctx.moveTo(cx + w * 0.45, lineNearY);
+    ctx.quadraticCurveTo(cx, lineNearY + 50, cx + 20, horizonY);
+    ctx.stroke();
+
+    for (let t = 0.08; t < 1; t += 0.08) {
+      const x1 = cx - w * 0.45 + (cx - 20 - (cx - w * 0.45)) * t;
+      const x2 = cx + w * 0.45 - (cx + w * 0.45 - cx - 20) * t;
+      const y = lineNearY + (horizonY - lineNearY) * t * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(x1, y);
+      ctx.lineTo(x2, y);
+      ctx.stroke();
+    }
+  }
+
+  ctx.font = '15px Arial';
+  ctx.fillStyle = 'rgba(80,120,180,0.70)';
+  staffNotes.forEach(note => {
+    const progress = 1 - (note.dist - offset + 1) % 1;
+    if (progress > 0 && progress < 1) {
+      const scale = 0.15 + progress * 0.85;
+      const y = horizonY + (note.nearY - horizonY) * progress;
+      const x = cx + (note.x - cx) * scale;
+      ctx.globalAlpha = progress * 0.8;
+      ctx.font = `${13 * scale}px Arial`;
+      ctx.fillText(note.symbol, x, y);
+    }
+  });
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function spawnStaffNote() {
+  const cx = staffCanvas.width / 2;
+  staffNotes.push({
+    x: cx + (Math.random() - 0.5) * 350,
+    nearY: getStaffNearY() - LINE_SPACING * 2 + Math.random() * LINE_SPACING * 4,
+    dist: 0,
+    symbol: noteSymbols[Math.floor(Math.random() * noteSymbols.length)],
+  });
+  if (staffNotes.length > 35) staffNotes.shift();
+}
+
+function animateStaff() {
+  const w = staffCanvas.width;
+  staffCtx.clearRect(0, 0, w, staffCanvas.height);
+  const offset = Date.now() * 0.0001;
+
+  flowSpeed += (targetSpeed - flowSpeed) * 0.02;
+  flowSpeed = Math.max(0.15, flowSpeed * 0.998);
+  targetSpeed = Math.max(0.15, targetSpeed * 0.998);
+
+  if (Math.random() < 0.02 + flowSpeed * 0.004) spawnStaffNote();
+  staffNotes.forEach(n => { n.dist += flowSpeed * 0.006; });
+  while (staffNotes.length && staffNotes[0].dist > 1.3) staffNotes.shift();
+
+  drawStaff(staffCtx, offset);
+  requestAnimationFrame(animateStaff);
+}
+
+// === 光点系统 ===
+const orbCanvas = document.getElementById('orb-canvas');
+const orbCtx = orbCanvas.getContext('2d');
+const glowCanvas = document.getElementById('glow-canvas');
+const glowCtx = glowCanvas.getContext('2d');
+
+let allOrbs = [];
+let lastPlayTime = 0;
+const DISAPPEAR_TIME = 4000;
+
+class Orb {
+  constructor(x, y, id) {
+    this.id = id;
+    this.baseX = x;
+    this.baseY = y;
+    this.x = x;
+    this.y = y;
+    this.dist = 0;
+    this.vy = 0;
+    this.vx = 0;
+    this.size = 8;
+    this.color = '#3a5a8a';
+    this.phase = 'flying';
+    this.jumpCount = 0;
+    this.pendingJumps = 0;
+    this.isJumping = false;
+    this.glowPoints = [];
+  }
+
+  jump() {
+    this.pendingJumps++;
+  }
+
+  doJump() {
+    this.isJumping = true;
+    this.vy = -12 - (flowSpeed - 0.3) * 2;
+    this.vx = 3 + flowSpeed * 0.8;
+    this.jumpCount++;
+    this.phase = 'jumping';
+  }
+
+  update(speed) {
+    this.dist += speed * 0.004;
+
+    // 处理待跳
+    if (this.pendingJumps > 0 && !this.isJumping) {
+      this.pendingJumps--;
+      this.doJump();
+    }
+
+    // 抛物线运动
+    if (this.phase === 'jumping') {
+      this.vy += 0.6;
+      this.vx += 0.15;
+      this.x += this.vx;
+      this.y += this.vy;
+
+      if (this.y >= this.baseY) {
+        this.y = this.baseY;
+        this.vy = -10 - (flowSpeed - 0.3) * 2;
+        this.vx = 3 + flowSpeed * 0.8;
+        this.jumpCount++;
+        this.addGlow();
+      }
+
+      if (this.vy > 0 && this.y > this.baseY - 20) {
+        this.phase = 'flying';
+        this.isJumping = false;
+      }
+    } else {
+      // 滑行
+      this.x += speed * 1.5;
+      this.baseX += speed * 1.5;
+      this.y = this.baseY - 30 - Math.sin(Date.now() * 0.003 + this.id) * 15;
+    }
+  }
+
+  addGlow() {
+    const cx = glowCanvas.width / 2;
+    const horizonY = getHorizonY();
+    const progress = 1 - this.dist % 1;
+    const scale = 0.15 + progress * 0.85;
+    const drawX = cx + (this.x - cx) * scale;
+    const drawY = horizonY + (this.y - horizonY) * scale;
+    this.glowPoints.push({ x: drawX, y: drawY, life: 1 });
+  }
+
+  draw(ctx) {
+    const cx = orbCanvas.width / 2;
+    const horizonY = getHorizonY();
+    const progress = 1 - this.dist % 1;
+    const scale = 0.15 + progress * 0.85;
+    const drawX = cx + (this.x - cx) * scale;
+    const drawY = horizonY + (this.y - horizonY) * scale;
+
+    ctx.save();
+
+    // 自身发光
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = '#4a7aaa';
+    ctx.shadowBlur = 25;
+    ctx.beginPath();
+    ctx.arc(drawX, drawY, this.size * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 轨迹
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#2a4a7a';
+    ctx.beginPath();
+    ctx.arc(drawX - 15 * scale, drawY + 10 * scale, 4 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(drawX - 30 * scale, drawY + 20 * scale, 3 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawGlow(ctx) {
+    const cx = glowCanvas.width / 2;
+    const horizonY = getHorizonY();
+
+    this.glowPoints.forEach((p, i) => {
+      p.life -= 0.012;
+      if (p.life <= 0) this.glowPoints.splice(i, 1);
+      else {
+        ctx.save();
+        ctx.globalAlpha = p.life * 0.5;
+        ctx.fillStyle = '#4a7aaa';
+        ctx.shadowColor = '#4a7aaa';
+        ctx.shadowBlur = 30 * p.life;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 12 * p.life + 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    });
+  }
+}
+
+let orbIdCounter = 0;
+let orbCenterX = 0;
+
+function addOrb() {
+  const cx = staffCanvas.width / 2;
+  const y = getStaffNearY() - LINE_SPACING * 2 + Math.random() * LINE_SPACING * 4;
+  const newOrb = new Orb(cx, y, orbIdCounter++);
+  newOrb.jump();
+  allOrbs.push(newOrb);
+}
+
+function animateOrbs() {
+  orbCtx.clearRect(0, 0, orbCanvas.width, orbCanvas.height);
+  glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+
+  jumpInterval = Math.max(30, 80 - (flowSpeed - 0.3) * 40);
+  const now = Date.now();
+
+  // 3秒无弹消失
+  if (allOrbs.length > 0 && now - lastPlayTime > DISAPPEAR_TIME) {
+    allOrbs = [];
+  }
+
+  // 自动跳跃
+  if (allOrbs.length > 0) {
+    allOrbs.forEach(orb => {
+      if (!orb.isJumping && orb.pendingJumps === 0 && now - lastJump > jumpInterval) {
+        orb.doJump();
+        lastJump = now;
+      }
+    });
+  }
+
+  allOrbs.forEach(orb => {
+    orb.update(flowSpeed);
+    orb.draw(orbCtx);
+    orb.drawGlow(glowCtx);
+  });
+
+  requestAnimationFrame(animateOrbs);
+}
+
+// === 流星 ===
+const shootCanvas = document.getElementById('shooting-canvas');
+const shootCtx = shootCanvas.getContext('2d');
+let lastHit = 0, hitCount = 0, star = null;
+
+function fireShootingStar() {
+  const pr = document.getElementById('piano').getBoundingClientRect();
+  star = { x: pr.left + pr.width / 2, y: -10, vx: (Math.random() - 0.5) * 3, vy: 6 + Math.random() * 3, life: 1 };
+}
+
+function drawShootingStar() {
+  shootCtx.clearRect(0, 0, shootCanvas.width, shootCanvas.height);
+  if (star) {
+    shootCtx.save();
+    shootCtx.globalAlpha = star.life;
+    const g = shootCtx.createLinearGradient(star.x, star.y, star.x + star.vx * 8, star.y + star.vy * 8);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(200,220,255,0)');
+    shootCtx.strokeStyle = g;
+    shootCtx.lineWidth = 2;
+    shootCtx.beginPath();
+    shootCtx.moveTo(star.x, star.y);
+    shootCtx.lineTo(star.x + star.vx * 8, star.y + star.vy * 8);
+    shootCtx.stroke();
+    star.x += star.vx; star.y += star.vy; star.life -= 0.015;
+    if (star.life <= 0 || star.y > shootCanvas.height) star = null;
+    shootCtx.restore();
+  }
+  requestAnimationFrame(drawShootingStar);
+}
+
+// === 音频 ===
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const notes = [
+  { note: 'C4', freq: 261.63, white: 0 }, { note: 'C#4', freq: 277.18, black: 0 },
+  { note: 'D4', freq: 293.66, white: 1 }, { note: 'D#4', freq: 311.13, black: 1 },
+  { note: 'E4', freq: 329.63, white: 2 }, { note: 'F4', freq: 349.23, white: 3 },
+  { note: 'F#4', freq: 369.99, black: 3 }, { note: 'G4', freq: 392.00, white: 4 },
+  { note: 'G#4', freq: 415.30, black: 4 }, { note: 'A4', freq: 440.00, white: 5 },
+  { note: 'A#4', freq: 466.16, black: 5 }, { note: 'B4', freq: 493.88, white: 6 },
+  { note: 'C5', freq: 523.25, white: 7 }, { note: 'C#5', freq: 554.37, black: 7 },
+  { note: 'D5', freq: 587.33, white: 8 }, { note: 'D#5', freq: 622.25, black: 8 },
+  { note: 'E5', freq: 659.25, white: 9 }, { note: 'F5', freq: 698.46, white: 10 },
+];
+const keyMap = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, m: 15, ';': 15, p: 15 };
+const piano = document.getElementById('piano');
+const instrumentConfigs = {
+  piano: { type: 'triangle', decay: 0.8, gain: 0.3 },
+  flute: { type: 'sine', decay: 1.2, gain: 0.25 },
+  strings: { type: 'sawtooth', decay: 1.5, gain: 0.15 },
+};
+let currentInstrument = 'piano';
+
+const keyElements = [];
+
+function floatStar(x, y) {
+  const el = document.createElement('div');
+  const sz = 4 + Math.random() * 3;
+  el.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;background:radial-gradient(circle at 30% 30%,rgba(100,150,220,0.9),#2a4a7a 70%);border-radius:50%;pointer-events:none;z-index:30;box-shadow:0 0 ${sz*2}px #2a4a7a;`;
+  document.body.appendChild(el);
+  let life = 1, px = x, py = y, vx = (Math.random() - 0.5) * 2, vy = -3 - Math.random() * 2;
+  (function tick() {
+    life -= 0.035;
+    px += vx; py += vy; vy += 0.1;
+    el.style.left = px + 'px'; el.style.top = py + 'px';
+    el.style.opacity = Math.max(0, life); el.style.transform = `scale(${life})`;
+    if (life > 0) requestAnimationFrame(tick); else el.remove();
+  })();
+}
+
+function activateKey(index) {
+  if (keyElements[index]) {
+    keyElements[index].classList.add('active');
+    setTimeout(() => keyElements[index].classList.remove('active'), 120);
+  }
+}
+
+function play(index, x, y) {
+  const n = notes[index];
+  if (!n) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const cfg = instrumentConfigs[currentInstrument];
+  osc.frequency.value = n.freq;
+  osc.type = cfg.type;
+  gain.gain.setValueAtTime(cfg.gain, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + cfg.decay);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + cfg.decay);
+
+  if (x !== undefined && y !== undefined) floatStar(x, y);
+
+  activateKey(index);
+
+  targetSpeed = Math.min(5, targetSpeed + 0.12);
+  lastPlayTime = Date.now();
+
+  addOrb();
+
+  const now = Date.now();
+  if (now - lastHit < 200) { hitCount++; if (hitCount >= 5 && !star) { fireShootingStar(); hitCount = 0; } }
+  else hitCount = 1;
+  lastHit = now;
+}
+
+let wi = 0;
+notes.forEach((n, i) => {
+  if (n.black !== undefined) {
+    const k = document.createElement('div');
+    k.className = 'black-key';
+    k.innerHTML = `<span class="key-label">${n.note}</span>`;
+    k.style.left = (50 * n.black + 32) + 'px';
+    piano.appendChild(k);
+    keyElements[i] = k;
+    k.addEventListener('mousedown', e => { play(i, e.clientX, e.clientY); });
+  } else {
+    const k = document.createElement('div');
+    k.className = 'white-key';
+    k.innerHTML = `<span class="key-label">${n.note}</span>`;
+    piano.appendChild(k);
+    keyElements[i] = k;
+    k.addEventListener('mousedown', e => { play(i, e.clientX, e.clientY); });
+    wi++;
+  }
+});
+
+document.querySelectorAll('.inst-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.inst-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentInstrument = btn.dataset.inst;
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const raw = e.key.toLowerCase();
+  const idx = keyMap[raw] ?? keyMap[raw === '；' ? ';' : raw];
+  if (idx !== undefined) {
+    const r = piano.getBoundingClientRect();
+    play(idx, r.left + (idx % 7) * 50 + 25, r.top + 110);
+  }
+});
+
+function resizeCanvases() {
+  [bgCanvas, staffCanvas, orbCanvas, glowCanvas, shootCanvas].forEach(c => {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+  });
+}
+resizeCanvases();
+window.addEventListener('resize', resizeCanvases);
+
+drawGalaxyBackground();
+animateStaff();
+animateOrbs();
+drawShootingStar();
+</script>
+</body>
+</html>
